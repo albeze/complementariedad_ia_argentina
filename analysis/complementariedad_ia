@@ -1,0 +1,74 @@
+set more off
+clear all
+
+cd "/Users/alfonsoberriosz/Documents/Stata/Econometria/Trabajo Final"
+use "EPH_2024_s2.dta", clear
+
+/* Identificador */
+sort codusu nro_hogar trimestre 
+egen id = group(codusu nro_hogar trimestre)
+
+/* UNIVERSO: SOLO OCUPADOS */
+keep if estado == 1
+
+/* Variables básicas */
+gen hombre = .
+replace hombre = 1 if ch04 == 1
+replace hombre = 0 if ch04 == 2
+
+rename ch06 edad
+
+gen edad2 = .
+replace edad2 = edad^2 
+
+/* Grandes urbes */
+gen grandes_urbes = .
+replace grandes_urbes = 1 if mas_500 == "S"
+replace grandes_urbes = 0 if mas_500 == "N"
+
+/* Formalidad */
+gen formal = .
+replace formal = 1 if empleo == 1
+replace formal = 0 if empleo == 2 
+
+/* Interacción */
+gen mult = comp_ia * grandes_urbes
+
+/*Salario mensual */
+gen salario = .
+replace salario = p21/(pp3e_tot * 4) if p21 > 0 
+gen lsalario = ln(salario)
+
+/* Log ingreso 
+gen lipcf = ln(ipcf)*/
+
+gen educ_baja = 0
+replace educ_baja = 1 if nivel_ed == 1 | nivel_ed==2 | nivel_ed== 7 
+replace educ_baja = . if nivel_ed == 9
+
+gen educ_media = 0
+replace educ_media = 1 if nivel_ed == 3 | nivel_ed== 4
+replace educ_media = . if nivel_ed == 9
+
+gen educ_alta = 0
+replace educ_alta = 1 if nivel_ed == 5 | nivel_ed== 6
+replace educ_alta = . if nivel_ed == 9
+
+label define lbl_ia 0 "No complementaria IA" 1 "Complementaria IA"
+label values comp_ia lbl_ia
+
+label define lbl_urb 0 "Ciudades menores" 1 "Grandes urbes"
+label values grandes_urbes lbl_urb
+
+/* Regresión */
+reg lsalario comp_ia grandes_urbes mult formal hombre edad educ_media educ_alta [pw=pondiio]
+
+estimates store model1
+
+tab comp_ia grandes_urbes [w=pondii]
+
+preserve
+collapse (mean) salario [w=pondiio], by(comp_ia grandes_urbes)
+graph bar salario, over(comp_ia) over(grandes_urbes)
+restore
+
